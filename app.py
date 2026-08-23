@@ -1,6 +1,7 @@
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 import binascii
+import os
 import requests
 from flask import Flask, jsonify, request
 import threading
@@ -102,35 +103,43 @@ def ensure_jwt_token_sync(region):
         print(f"[JWT] Token missing or expired for {region}. Fetching...")
 
         endpoints = {
-            "IND": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
-            "BR": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4345418798&password=JOBAYAR_GK6VJ",
-            "US": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=3787481313&password=JlOivPeosauV0l9SG6gwK39lH3x2kJkO",
-            "SAC": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349229968&password=GARENA_KI_MKC_50WO1_BY_KALLU_CODEX_22WFM",
-            "BD": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349237175&password=GARENA_KI_MKC_TH38G_BY_KALLU_CODEX_HYF2H",
-            "ID": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349239376&password=GARENA_KI_MKC_2RTZ5_BY_KALLU_CODEX_GTYZX",
-            "PK": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349240944&password=GARENA_KI_MKC_1VK2D_BY_KALLU_CODEX_53S3N",
-            "VN": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349242942&password=GARENA_KI_MKC_B9L28_BY_KALLU_CODEX_HQ3T8",
-            "ME": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349244853&password=GARENA_KI_MKC_MFD4N_BY_KALLU_CODEX_2Y9F4",
-            "TH": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349247913&password=GARENA_KI_MKC_2123L_BY_KALLU_CODEX_SCKTB",
-            "default": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349249859&password=GARENA_KI_MKC_VO3QR_BY_KALLU_CODEX_RTAWR"
+            "IND": os.getenv("https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg", ""),
+            "BR": os.getenv("JWT_URL_BR", ""),
+            "US": os.getenv("JWT_URL_US", ""),
+            "SAC": os.getenv("JWT_URL_SAC", ""),
+            "BD": os.getenv("JWT_URL_BD", ""),
+            "ID": os.getenv("JWT_URL_ID", ""),
+            "PK": os.getenv("JWT_URL_PK", ""),
+            "VN": os.getenv("JWT_URL_VN", ""),
+            "ME": os.getenv("JWT_URL_ME", ""),
+            "TH": os.getenv("JWT_URL_TH", ""),
+            "DEFAULT": os.getenv("JWT_URL_DEFAULT", ""),
         }
 
-        url = endpoints.get(region, endpoints["default"])
+        url = endpoints.get(region) or endpoints.get("DEFAULT") or endpoints.get("IND")
+
+        if not url:
+            print(f"[JWT] No JWT endpoint configured for region {region}")
+            return jwt_tokens.get(region)
 
         try:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
 
             data = response.json()
-            token = data.get("jwt_token")
+            token = None
+            if isinstance(data, dict):
+                token = data.get("jwt_token") or data.get("token")
+                if not token and isinstance(data.get("data"), dict):
+                    token = data["data"].get("jwt_token") or data["data"].get("token")
 
             if token:
                 jwt_tokens[region] = token
-                jwt_expiry[region] = current_time + 300
-                print(f"[JWT] Token for {region} updated: {token[:50]}...")
+                jwt_expiry[region] = time.time() + 300
+                print(f"[JWT] Token for {region} updated")
                 return token
-            else:
-                print(f"[JWT] Failed to extract token for {region}")
+
+            print(f"[JWT] Failed to extract token for {region}")
 
         except Exception as e:
             print(f"[JWT] Request error for {region}: {e}")
@@ -150,9 +159,9 @@ def get_api_endpoint(region):
         "VN": "https://clientbp.ggpolarbear.com/GetPlayerPersonalShow",
         "ME": "https://clientbp.ggpolarbear.com/GetPlayerPersonalShow",
         "TH": "https://clientbp.ggpolarbear.com/GetPlayerPersonalShow",
-        "default": "https://client.ind.freefiremobile.com/GetPlayerPersonalShow"
+        "DEFAULT": "https://client.ind.freefiremobile.com/GetPlayerPersonalShow"
     }
-    return endpoints.get(region, endpoints["default"])
+    return endpoints.get(region, endpoints["DEFAULT"])
 
 default_key = "Yg&tc%DEuh6%Zc^8"
 default_iv = "6oyZDr22E3ychjM%"
@@ -168,7 +177,7 @@ def encrypt_aes(hex_data, key, iv):
 def apis(idd, region):
     token = ensure_jwt_token_sync(region)
     if not token:
-        raise Exception(f"Failed to get JWT token for region {region}")
+        raise RuntimeError(f"Failed to get JWT token for region {region}. Check JWT_URL_{region} in Vercel environment variables.")
     
     endpoint = get_api_endpoint(region)
     headers = {
@@ -330,11 +339,16 @@ def home():
     return html_content
 
 
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok", "service": "FF Player Info API"}), 200
+
+
 @app.route('/info', methods=['GET'])
 def get_player_info():
     try:
         uid = request.args.get('uid')
-        region = request.args.get('region', 'default').upper()
+        region = request.args.get('region', 'IND').strip().upper() or 'IND'
         custom_key = request.args.get('key', default_key)
         custom_iv = request.args.get('iv', default_iv)
         
@@ -369,7 +383,7 @@ def get_player_info():
 def get_wishlist_info():
     try:
         uid = request.args.get('uid')
-        region = request.args.get('region', 'default').upper()
+        region = request.args.get('region', 'IND').strip().upper() or 'IND'
         custom_key = request.args.get('key', default_key)
         custom_iv = request.args.get('iv', default_iv)
         
@@ -418,4 +432,4 @@ def favicon():
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=1080)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "1080")))
