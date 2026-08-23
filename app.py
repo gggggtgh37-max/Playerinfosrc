@@ -103,16 +103,16 @@ def ensure_jwt_token_sync(region):
 
         endpoints = {
             "IND": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
-            "BR": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4345418798&password=JOBAYAR_GK6VJ",
-            "US": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=3787481313&password=JlOivPeosauV0l9SG6gwK39lH3x2kJkO",
-            "SAC": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4349229968&password=GARENA_KI_MKC_50WO1_BY_KALLU_CODEX_22WFM",
-            "BD": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4349237175&password=GARENA_KI_MKC_TH38G_BY_KALLU_CODEX_HYF2H",
-            "ID": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4349239376&password=GARENA_KI_MKC_2RTZ5_BY_KALLU_CODEX_GTYZX",
-            "PK": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4349240944&password=GARENA_KI_MKC_1VK2D_BY_KALLU_CODEX_53S3N",
-            "VN": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4349242942&password=GARENA_KI_MKC_B9L28_BY_KALLU_CODEX_HQ3T8",
-            "ME": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4349244853&password=GARENA_KI_MKC_MFD4N_BY_KALLU_CODEX_2Y9F4",
-            "TH": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4349247913&password=GARENA_KI_MKC_2123L_BY_KALLU_CODEX_SCKTB",
-            "default": "https://jwt-system-ff.vercel.app/guest_to_jwt?uid=4349249859&password=GARENA_KI_MKC_VO3QR_BY_KALLU_CODEX_RTAWR"
+            "BR": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4345418798&password=JOBAYAR_GK6VJ",
+            "US": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=3787481313&password=JlOivPeosauV0l9SG6gwK39lH3x2kJkO",
+            "SAC": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349229968&password=GARENA_KI_MKC_50WO1_BY_KALLU_CODEX_22WFM",
+            "BD": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349237175&password=GARENA_KI_MKC_TH38G_BY_KALLU_CODEX_HYF2H",
+            "ID": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349239376&password=GARENA_KI_MKC_2RTZ5_BY_KALLU_CODEX_GTYZX",
+            "PK": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349240944&password=GARENA_KI_MKC_1VK2D_BY_KALLU_CODEX_53S3N",
+            "VN": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349242942&password=GARENA_KI_MKC_B9L28_BY_KALLU_CODEX_HQ3T8",
+            "ME": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349244853&password=GARENA_KI_MKC_MFD4N_BY_KALLU_CODEX_2Y9F4",
+            "TH": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349247913&password=GARENA_KI_MKC_2123L_BY_KALLU_CODEX_SCKTB",
+            "default": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=4349249859&password=GARENA_KI_MKC_VO3QR_BY_KALLU_CODEX_RTAWR"
         }
 
         url = endpoints.get(region, endpoints["default"])
