@@ -104,19 +104,19 @@ def ensure_jwt_token_sync(region):
 
         endpoints = {
             "IND": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
-            "BR": os.getenv("JWT_URL_BR", ""),
-            "US": os.getenv("JWT_URL_US", ""),
-            "SAC": os.getenv("JWT_URL_SAC", ""),
-            "BD": os.getenv("JWT_URL_BD", ""),
-            "ID": os.getenv("JWT_URL_ID", ""),
-            "PK": os.getenv("JWT_URL_PK", ""),
-            "VN": os.getenv("JWT_URL_VN", ""),
-            "ME": os.getenv("JWT_URL_ME", ""),
-            "TH": os.getenv("JWT_URL_TH", ""),
-            "DEFAULT": os.getenv("JWT_URL_DEFAULT", ""),
+            "BR": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7036562692&password=DGHJ_0OcMGn",
+            "US": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7036480247&password=OHVV_Tt2Fkf",
+            "SAC": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7035475933&password=gyhh_NDlNBf",
+            "BD": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7035631318&password=2_I0roPl",
+            "ID": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7036655725&password=DFGB_Frfq5I",
+            "PK": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7035553160&password=rg_1xMEIE",
+            "VN": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7034047440&password=RISHU_nZee7a",
+            "ME": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
+            "TH": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
+            "DEFAULT": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
         }
 
-        url = endpoints.get(region) or endpoints.get("DEFAULT") or endpoints.get("IND")
+        url = endpoints.get(region) or endpoints["DEFAULT"]
 
         if not url:
             print(f"[JWT] No JWT endpoint configured for region {region}")
