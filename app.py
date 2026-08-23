@@ -103,7 +103,7 @@ def ensure_jwt_token_sync(region):
         print(f"[JWT] Token missing or expired for {region}. Fetching...")
 
         endpoints = {
-            "IND": os.getenv("https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg", ""),
+            "IND": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
             "BR": os.getenv("JWT_URL_BR", ""),
             "US": os.getenv("JWT_URL_US", ""),
             "SAC": os.getenv("JWT_URL_SAC", ""),
