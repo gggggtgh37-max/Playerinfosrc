@@ -110,7 +110,7 @@ def ensure_jwt_token_sync(region):
             "BD": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7035631318&password=2_I0roPl",
             "ID": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7036655725&password=DFGB_Frfq5I",
             "PK": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7035553160&password=rg_1xMEIE",
-            "VN": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7034047440&password=RISHU_nZee7a",
+            "VN": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7033949552&password=FJ_1gCVju",
             "ME": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
             "TH": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
             "DEFAULT": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
