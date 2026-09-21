@@ -102,18 +102,20 @@ def ensure_jwt_token_sync(region):
 
         print(f"[JWT] Token missing or expired for {region}. Fetching...")
 
+        # Configure JWT endpoints through environment variables.
+        # Example: JWT_URL_IND=https://your-jwt-service/token?uid=...&password=...
         endpoints = {
-            "IND": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
-            "BR": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7036562692&password=DGHJ_0OcMGn",
-            "US": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7036480247&password=OHVV_Tt2Fkf",
-            "SAC": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7035475933&password=gyhh_NDlNBf",
-            "BD": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7035631318&password=2_I0roPl",
-            "ID": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7036655725&password=DFGB_Frfq5I",
-            "PK": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7035553160&password=rg_1xMEIE",
-            "VN": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7033949552&password=FJ_1gCVju",
-            "ME": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
-            "TH": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
-            "DEFAULT": "https://jwtsrcapi-3-ufeyffggffdddfthrhrhhrh-two.vercel.app/token?uid=7014289155&password=TUFAN_w0RFBg",
+            "IND": os.getenv("JWT_URL_IND", ""),
+            "BR": os.getenv("JWT_URL_BR", ""),
+            "US": os.getenv("JWT_URL_US", ""),
+            "SAC": os.getenv("JWT_URL_SAC", ""),
+            "BD": os.getenv("JWT_URL_BD", ""),
+            "ID": os.getenv("JWT_URL_ID", ""),
+            "PK": os.getenv("JWT_URL_PK", ""),
+            "VN": os.getenv("JWT_URL_VN", ""),
+            "ME": os.getenv("JWT_URL_ME", ""),
+            "TH": os.getenv("JWT_URL_TH", ""),
+            "DEFAULT": os.getenv("JWT_URL_DEFAULT", ""),
         }
 
         url = endpoints.get(region) or endpoints["DEFAULT"]
@@ -187,7 +189,7 @@ def apis(idd, region):
         'Authorization': f'Bearer {token}',
         'X-Unity-Version': '2018.4.11f1',
         'X-GA': 'v1 1',
-        'ReleaseVersion': 'OB54',
+        'ReleaseVersion': os.getenv('FF_RELEASE_VERSION', 'OB55'),
         'Content-Type': 'application/x-www-form-urlencoded',
     }
     
@@ -389,6 +391,10 @@ def get_wishlist_info():
         
         if not uid:
             return jsonify({"error": "UID parameter is required"}), 400
+        if not uid.isdigit():
+            return jsonify({"error": "UID must contain digits only"}), 400
+        if len(uid) > 20:
+            return jsonify({"error": "UID is too long"}), 400
 
         req = GetWishListItems_pb2.CSGetWishListItemsReq()
         req.account_id = int(uid)
@@ -401,13 +407,15 @@ def get_wishlist_info():
         wishlist_url = base_endpoint.replace("GetPlayerPersonalShow", "GetWishListItems")
         
         token = ensure_jwt_token_sync(region)
+        if not token:
+            return jsonify({"error": f"JWT is not configured for region {region}"}), 503
         headers = {
             'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)',
             'Connection': 'Keep-Alive',
             'Authorization': f'Bearer {token}',
             'X-Unity-Version': '2018.4.11f1',
             'X-GA': 'v1 1',
-            'ReleaseVersion': 'OB54',
+            'ReleaseVersion': os.getenv('FF_RELEASE_VERSION', 'OB55'),
             'Content-Type': 'application/x-www-form-urlencoded',
         }
 
