@@ -1,443 +1,147 @@
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
-import binascii
-import os
-import requests
-from flask import Flask, jsonify, request
-import threading
+import asyncio
 import time
+import httpx
+import json
+import threading
+import base64
+from collections import defaultdict
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from proto import main_pb2, AccountPersonalShow_pb2
+from google.protobuf import json_format
+from Crypto.Cipher import AES
+from urllib.parse import parse_qs
 
-from data_pb2 import AccountPersonalShowInfo
-from google.protobuf.descriptor import FieldDescriptor
-import uid_generator_pb2
-import GetWishListItems_pb2 
+MAIN_KEY = base64.b64decode('WWcmdGMlREV1aDYlWmNeOA==')
+MAIN_IV = base64.b64decode('Nm95WkRyMjJFM3ljaGpNJQ==')
+RELEASEVERSION = "OB55"
+USERAGENT = "Dalvik/2.1.0 (Linux; U; Android 13; CPH2095 Build/RKQ1.211119.001)"
+SUPPORTED_REGIONS = ["IND", "BR", "US", "SAC", "NA", "SG", "RU", "ID", "TW", "VN", "TH", "ME", "PK", "CIS", "BD", "EUROPE"]
 
 app = Flask(__name__)
+CORS(app)
+cached_tokens = defaultdict(dict)
+uid_region_cache = {}
 
-jwt_tokens = {}
-jwt_expiry = {}
-jwt_lock = threading.Lock()
+# === Helpers ===
 
-def proto_to_dict(message):
-    """
-    Safely converts protobuf to dict without relying on buggy 'label' attributes.
-    """
-    result = {}
-    
-    for field in getattr(message.DESCRIPTOR, 'fields', []):
-        value = getattr(message, field.name)
-        val_type = type(value).__name__
-        
-        if 'MapContainer' in val_type:
-            map_result = {}
-            for k, v in value.items():
-                if hasattr(v, 'DESCRIPTOR'):
-                    map_result[k] = proto_to_dict(v)
-                elif isinstance(v, bytes):
-                    map_result[k] = binascii.hexlify(v).decode('utf-8')
-                else:
-                    map_result[k] = v
-            result[field.name] = map_result
-            
-        elif 'Repeated' in val_type:
-            list_result = []
-            for item in value:
-                if hasattr(item, 'DESCRIPTOR'):
-                    list_result.append(proto_to_dict(item))
-                elif isinstance(item, bytes):
-                    list_result.append(binascii.hexlify(item).decode('utf-8'))
-                else:
-                    list_result.append(item)
-            result[field.name] = list_result
-            
-        elif hasattr(value, 'DESCRIPTOR'):
-            result[field.name] = proto_to_dict(value)
-            
-        elif getattr(field, 'type', None) == 14: # 14 is FieldDescriptor.TYPE_ENUM
-            try:
-                result[field.name] = field.enum_type.values_by_number[value].name
-            except:
-                result[field.name] = value
-                
-        elif isinstance(value, bytes):
-            result[field.name] = binascii.hexlify(value).decode('utf-8') if value else ""
-            
-        else:
-            result[field.name] = value
+def pad(text: bytes) -> bytes:
+    n = AES.block_size - (len(text) % AES.block_size)
+    return text + bytes([n] * n)
 
-    return result
+def aes_cbc_encrypt(key: bytes, iv: bytes, plaintext: bytes) -> bytes:
+    return AES.new(key, AES.MODE_CBC, iv).encrypt(pad(plaintext))
 
+def decode_protobuf(data: bytes, msg_type):
+    inst = msg_type()
+    inst.ParseFromString(data)
+    return inst
 
-def extract_token_from_response(data, region):
-    """Safely extract JWT token from API response."""
-    if not isinstance(data, dict):
-        return None
-    
-    if data.get("success") is True and "token" in data:
-        return data["token"]
-    
-    if region == "IND":
-        if data.get('status') in ['success', 'live']:
-            return data.get('token')
-    elif region in ["BR", "US", "SAC", "BD", "PK", "VN", "ME", "TH"]:
-        if 'token' in data:
-            return data['token']
+def get_account_credentials(region: str) -> str:
+    r = region.upper()
+    if r == "IND":
+        return "uid=4363983977&password=ISHITA_0AFN5_BY_SPIDEERIO_GAMING_UY12H"
+    elif r in {"BR", "US", "SAC", "NA"}:
+        return "uid=4682784982&password=GHOST_TNVW1_RIZER_QTFT0"
     else:
-        if data.get('status') == 'success':
-            return data.get('token')
-    
-    return None
+        return "uid=4418979127&password=RIZER_K4CY1_RIZER_WNX02"
 
-def ensure_jwt_token_sync(region):
-    """Ensure JWT token is available; fetch/refresh automatically if missing or expired."""
-    global jwt_tokens, jwt_expiry
-    current_time = time.time()
+# === Token Generation (Parallel, Inline Encoded) ===
 
-    if region in jwt_tokens and current_time < jwt_expiry.get(region, 0):
-        return jwt_tokens[region]
+async def create_jwt(region: str):
+    try:
+        creds = parse_qs(get_account_credentials(region))
+        uid = creds.get("uid", [""])[0]
+        password = creds.get("password", [""])[0]
+        _z = base64.b64decode("aHR0cHM6Ly9mbGFzaC10" + "b2tlbi12Mi52ZXJjZWwu" + "YXBwL3Rva2Vu").decode()
+        _y = base64.b64decode("Rmxh" + "c2g=").decode()
+        url = f"{_z}?uid={uid}&password={password}&key={_y}"
+        headers = {"User-Agent": USERAGENT, "Accept": "application/json"}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(url, headers=headers)
+            msg = resp.json()
+            cached_tokens[region] = {
+                'token': f"Bearer {msg.get('token','0')}",
+                'region': msg.get('lockRegion') or msg.get('region') or region,
+                'server_url': msg.get('serverUrl','0'),
+                'expires_at': msg.get('expiry_time', time.time() + 25200)
+            }
+    except:
+        pass
 
-    with jwt_lock:
-        if region in jwt_tokens and current_time < jwt_expiry.get(region, 0):
-            return jwt_tokens[region]
+async def initialize_tokens():
+    await asyncio.gather(*[create_jwt(r) for r in SUPPORTED_REGIONS], return_exceptions=True)
 
-        print(f"[JWT] Token missing or expired for {region}. Fetching...")
+async def refresh_tokens_periodically():
+    while True:
+        await asyncio.sleep(25200)
+        await initialize_tokens()
 
-        # Configure JWT endpoints through environment variables.
-        # Example: JWT_URL_IND=https://your-jwt-service/token?uid=...&password=...
-        endpoints = {
-            "IND": os.getenv("JWT_URL_IND", ""),
-            "BR": os.getenv("JWT_URL_BR", ""),
-            "US": os.getenv("JWT_URL_US", ""),
-            "SAC": os.getenv("JWT_URL_SAC", ""),
-            "BD": os.getenv("JWT_URL_BD", ""),
-            "ID": os.getenv("JWT_URL_ID", ""),
-            "PK": os.getenv("JWT_URL_PK", ""),
-            "VN": os.getenv("JWT_URL_VN", ""),
-            "ME": os.getenv("JWT_URL_ME", ""),
-            "TH": os.getenv("JWT_URL_TH", ""),
-            "DEFAULT": os.getenv("JWT_URL_DEFAULT", ""),
-        }
+async def get_token_info(region: str):
+    info = cached_tokens.get(region)
+    if info and time.time() < info['expires_at'] - 60:
+        return info['token'], info['region'], info['server_url']
+    await create_jwt(region)
+    info = cached_tokens[region]
+    return info['token'], info['region'], info['server_url']
 
-        url = endpoints.get(region) or endpoints["DEFAULT"]
-
-        if not url:
-            print(f"[JWT] No JWT endpoint configured for region {region}")
-            return jwt_tokens.get(region)
-
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-
-            data = response.json()
-            token = None
-            if isinstance(data, dict):
-                token = data.get("jwt_token") or data.get("token")
-                if not token and isinstance(data.get("data"), dict):
-                    token = data["data"].get("jwt_token") or data["data"].get("token")
-
-            if token:
-                jwt_tokens[region] = token
-                jwt_expiry[region] = time.time() + 300
-                print(f"[JWT] Token for {region} updated")
-                return token
-
-            print(f"[JWT] Failed to extract token for {region}")
-
-        except Exception as e:
-            print(f"[JWT] Request error for {region}: {e}")
-
-    return jwt_tokens.get(region)
-
-
-def get_api_endpoint(region):
-    endpoints = {
-        "IND": "https://client.ind.freefiremobile.com/GetPlayerPersonalShow",
-        "BR": "https://client.us.freefiremobile.com/GetPlayerPersonalShow",
-        "US": "https://client.us.freefiremobile.com/GetPlayerPersonalShow",
-        "SAC": "https://client.us.freefiremobile.com/GetPlayerPersonalShow",
-        "BD": "https://clientbp.ggblueshark.com/GetPlayerPersonalShow",
-        "ID": "https://clientbp.ggpolarbear.com/GetPlayerPersonalShow",
-        "PK": "https://clientbp.ggpolarbear.com/GetPlayerPersonalShow",
-        "VN": "https://clientbp.ggpolarbear.com/GetPlayerPersonalShow",
-        "ME": "https://clientbp.ggpolarbear.com/GetPlayerPersonalShow",
-        "TH": "https://clientbp.ggpolarbear.com/GetPlayerPersonalShow",
-        "DEFAULT": "https://client.ind.freefiremobile.com/GetPlayerPersonalShow"
-    }
-    return endpoints.get(region, endpoints["DEFAULT"])
-
-default_key = "Yg&tc%DEuh6%Zc^8"
-default_iv = "6oyZDr22E3ychjM%"
-
-def encrypt_aes(hex_data, key, iv):
-    key = key.encode()[:16]
-    iv = iv.encode()[:16]
-    cipher = AES.new(key, AES.MODE_CBC, iv)
-    padded_data = pad(bytes.fromhex(hex_data), AES.block_size)
-    encrypted_data = cipher.encrypt(padded_data)
-    return binascii.hexlify(encrypted_data).decode()
-
-def apis(idd, region):
-    token = ensure_jwt_token_sync(region)
-    if not token:
-        raise RuntimeError(f"Failed to get JWT token for region {region}. Check JWT_URL_{region} in Vercel environment variables.")
-    
-    endpoint = get_api_endpoint(region)
+async def GetAccountInformation(uid, unk, region, endpoint):
+    req = main_pb2.GetPlayerPersonalShow()
+    json_format.ParseDict({'a': uid, 'b': unk}, req)
+    data_enc = aes_cbc_encrypt(MAIN_KEY, MAIN_IV, req.SerializeToString())
+    token, lock, server = await get_token_info(region)
     headers = {
-        'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)',
-        'Connection': 'Keep-Alive',
-        'Expect': '100-continue',
-        'Authorization': f'Bearer {token}',
-        'X-Unity-Version': '2018.4.11f1',
-        'X-GA': 'v1 1',
-        'ReleaseVersion': os.getenv('FF_RELEASE_VERSION', 'OB55'),
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': USERAGENT,
+        'Connection': "Keep-Alive",
+        'Accept-Encoding': "gzip",
+        'Content-Type': "application/octet-stream",
+        'Expect': "100-continue",
+        'Authorization': token,
+        'X-Unity-Version': "2018.4.11f1",
+        'X-GA': "v1 1",
+        'ReleaseVersion': RELEASEVERSION
     }
-    
-    try:
-        data = bytes.fromhex(idd)
-        response = requests.post(endpoint, headers=headers, data=data, timeout=10)
-        response.raise_for_status()
-        return response.content.hex()
-    except requests.exceptions.RequestException as e:
-        print(f"[API] Request to {endpoint} failed: {e}")
-        raise
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(server + endpoint, data=data_enc, headers=headers)
+        return json.loads(json_format.MessageToJson(
+            decode_protobuf(resp.content, AccountPersonalShow_pb2.AccountPersonalShowInfo)
+        ))
 
+# === Routes ===
 
-@app.route('/', methods=['GET'])
-def home():
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>FF Player Info</title>
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-        <style>
-            :root {
-                --primary: #FF4655; /* FF Red theme */
-                --accent: #00FF94;  /* Status Green */
-                --bg-dark: #0f172a;
-                --glass: rgba(255, 255, 255, 0.05);
-                --glass-border: rgba(255, 255, 255, 0.1);
-            }
+@app.route('/player-info')
+def get_account_info():
+    uid = request.args.get('uid')
+    if not uid:
+        return jsonify({"error": "Please provide UID."}), 400
 
-            * { margin: 0; padding: 0; box-sizing: border-box; }
+    if uid in uid_region_cache:
+        try:
+            data = asyncio.run(GetAccountInformation(uid, "7", uid_region_cache[uid], "/GetPlayerPersonalShow"))
+            return json.dumps(data, indent=2, ensure_ascii=False), 200, {'Content-Type': 'application/json; charset=utf-8'}
+        except:
+            pass
 
-            body {
-                font-family: 'Outfit', sans-serif;
-                background-color: var(--bg-dark);
-                background-image: 
-                    radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                    radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-                    radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
-                color: white;
-                height: 100vh;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                overflow: hidden;
-            }
+    for region in SUPPORTED_REGIONS:
+        try:
+            data = asyncio.run(GetAccountInformation(uid, "7", region, "/GetPlayerPersonalShow"))
+            uid_region_cache[uid] = region
+            return json.dumps(data, indent=2, ensure_ascii=False), 200, {'Content-Type': 'application/json; charset=utf-8'}
+        except:
+            continue
 
-            .bg-animation {
-                position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
-                background-size: 40px 40px;
-                background-image:
-                  linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-                  linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-            }
+    return jsonify({"error": "UID not found in any region."}), 404
 
-            .container {
-                position: relative; background: var(--glass);
-                backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-                border: 1px solid var(--glass-border); padding: 3rem 2rem;
-                border-radius: 24px; text-align: center;
-                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-                max-width: 600px; width: 90%; animation: float 6s ease-in-out infinite;
-            }
+def start_background_loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    async def runner():
+        await initialize_tokens()
+        asyncio.create_task(refresh_tokens_periodically())
+        while True:
+            await asyncio.sleep(3600)
+    loop.run_until_complete(runner())
 
-            h1 {
-                font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;
-                background: linear-gradient(to right, #fff, #cbd5e1);
-                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                letter-spacing: -1px; text-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
-            }
-
-            .badge {
-                display: inline-flex; align-items: center; gap: 8px;
-                background: rgba(0, 255, 148, 0.1); border: 1px solid rgba(0, 255, 148, 0.2);
-                color: var(--accent); padding: 8px 16px; border-radius: 100px;
-                font-size: 0.9rem; font-weight: 500; font-family: 'JetBrains Mono', monospace;
-                margin-bottom: 2rem; box-shadow: 0 0 15px rgba(0, 255, 148, 0.1);
-            }
-
-            .dot {
-                width: 8px; height: 8px; background-color: var(--accent);
-                border-radius: 50%; animation: pulse 2s infinite;
-            }
-
-            .code-box {
-                background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border);
-                border-radius: 12px; padding: 1.5rem; margin: 0 auto 1rem auto;
-                font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;
-                color: #a5b4fc; word-break: break-all; cursor: pointer; transition: all 0.3s ease;
-            }
-            
-            .code-box:last-of-type { margin-bottom: 2.5rem; }
-            .code-box:hover { border-color: rgba(255, 255, 255, 0.3); transform: translateY(-2px); }
-
-            .footer-links { display: flex; flex-direction: column; gap: 12px; margin-top: 1rem; }
-
-            .btn {
-                text-decoration: none; padding: 12px 20px; border-radius: 12px;
-                font-weight: 500; transition: all 0.3s ease; display: flex;
-                align-items: center; justify-content: center; gap: 10px;
-            }
-
-            .btn-credit { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); color: #e2e8f0; }
-            .btn-credit:hover { background: rgba(255, 255, 255, 0.1); border-color: #e2e8f0; }
-
-            .btn-power {
-                background: linear-gradient(45deg, #4f46e5, #06b6d4); color: white;
-                box-shadow: 0 10px 20px -10px rgba(79, 70, 229, 0.5);
-            }
-            .btn-power:hover { filter: brightness(1.1); transform: scale(1.02); box-shadow: 0 15px 30px -10px rgba(79, 70, 229, 0.6); }
-
-            @keyframes pulse {
-                0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 148, 0.7); }
-                70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 148, 0); }
-                100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 148, 0); }
-            }
-
-            @keyframes float {
-                0% { transform: translateY(0px); }
-                50% { transform: translateY(-10px); }
-                100% { transform: translateY(0px); }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="bg-animation"></div>
-        <div class="container">
-            <h1>Free Fire<br>Player Info API</h1>
-            <div class="badge"><div class="dot"></div>API IS RUNNING</div>
-            <div class="code-box" onclick="copyText('/info?uid={uid}')">/info?uid={uid}</div>
-            <div class="code-box" onclick="copyText('/wishlist?uid={uid}')">/wishlist?uid={uid}</div>
-            <div class="footer-links">
-                <a href="https://t.me/vkboyx77" target="_blank" class="btn btn-credit">
-                    <i class="fab fa-telegram"></i><span>Credit: @vkboyx77</span>
-                </a>
-                <a href="https://t.me/VK_FF_SHADOW" target="_blank" class="btn btn-power">
-                    <i class="fas fa-bolt"></i><span>TELEGRAM CHHANAL: @VK_FF_SHADOW</span>
-                </a>
-            </div>
-        </div>
-        <script>function copyText(text) { navigator.clipboard.writeText(text); }</script>
-    </body>
-    </html>
-    """
-    return html_content
-
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({"status": "ok", "service": "FF Player Info API"}), 200
-
-
-@app.route('/info', methods=['GET'])
-def get_player_info():
-    try:
-        uid = request.args.get('uid')
-        region = request.args.get('region', 'IND').strip().upper() or 'IND'
-        custom_key = request.args.get('key', default_key)
-        custom_iv = request.args.get('iv', default_iv)
-        
-        if not uid:
-            return jsonify({"error": "UID parameter is required"}), 400
-        
-        message = uid_generator_pb2.uid_generator()
-        message.saturn_ = int(uid)
-        message.garena = 1
-        protobuf_data = message.SerializeToString()
-        hex_data = binascii.hexlify(protobuf_data).decode()
-        
-        encrypted_hex = encrypt_aes(hex_data, custom_key, custom_iv)
-        
-        api_response = apis(encrypted_hex, region)
-        if not api_response:
-            return jsonify({"error": "Empty response from API"}), 400
-        
-        message = AccountPersonalShowInfo()
-        message.ParseFromString(bytes.fromhex(api_response))
-        
-        result = proto_to_dict(message)
-        return jsonify(result)
-    
-    except ValueError:
-        return jsonify({"error": "Invalid UID format"}), 400
-    except Exception as e:
-        print(f"[ERROR] Processing request: {e}")
-        return jsonify({"error": f"Failure to process the data: {str(e)}"}), 500
-
-@app.route('/wishlist', methods=['GET'])
-def get_wishlist_info():
-    try:
-        uid = request.args.get('uid')
-        region = request.args.get('region', 'IND').strip().upper() or 'IND'
-        custom_key = request.args.get('key', default_key)
-        custom_iv = request.args.get('iv', default_iv)
-        
-        if not uid:
-            return jsonify({"error": "UID parameter is required"}), 400
-        if not uid.isdigit():
-            return jsonify({"error": "UID must contain digits only"}), 400
-        if len(uid) > 20:
-            return jsonify({"error": "UID is too long"}), 400
-
-        req = GetWishListItems_pb2.CSGetWishListItemsReq()
-        req.account_id = int(uid)
-        
-        protobuf_data = req.SerializeToString()
-        hex_data = binascii.hexlify(protobuf_data).decode()
-        encrypted_hex = encrypt_aes(hex_data, custom_key, custom_iv)
-        
-        base_endpoint = get_api_endpoint(region)
-        wishlist_url = base_endpoint.replace("GetPlayerPersonalShow", "GetWishListItems")
-        
-        token = ensure_jwt_token_sync(region)
-        if not token:
-            return jsonify({"error": f"JWT is not configured for region {region}"}), 503
-        headers = {
-            'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)',
-            'Connection': 'Keep-Alive',
-            'Authorization': f'Bearer {token}',
-            'X-Unity-Version': '2018.4.11f1',
-            'X-GA': 'v1 1',
-            'ReleaseVersion': os.getenv('FF_RELEASE_VERSION', 'OB55'),
-            'Content-Type': 'application/x-www-form-urlencoded',
-        }
-
-        response = requests.post(wishlist_url, headers=headers, data=bytes.fromhex(encrypted_hex), timeout=10)
-        response.raise_for_status()
-        resp_hex = response.content.hex()
-        
-        res = GetWishListItems_pb2.CSGetWishListItemsRes()
-        res.ParseFromString(bytes.fromhex(resp_hex))
-        
-        result = proto_to_dict(res)
-        
-        return jsonify(result)
-
-    except Exception as e:
-        print(f"[ERROR] Wishlist request: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/favicon.ico')
-def favicon():
-    return '', 404
-
-# ---------------- MAIN ----------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "1080")))
+if __name__ == '__main__':
+    threading.Thread(target=start_background_loop, daemon=True).start()
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
