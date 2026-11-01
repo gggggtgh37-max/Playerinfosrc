@@ -40,7 +40,7 @@ def decode_protobuf(data: bytes, msg_type):
 def get_account_credentials(region: str) -> str:
     r = region.upper()
     if r == "IND":
-        return "uid=4363983977&password=ISHITA_0AFN5_BY_SPIDEERIO_GAMING_UY12H"
+        return "uid=8386877555&password=ebeh_9G8J6_BY_DIVAN_SINGH_8EQEK"
     elif r in {"BR", "US", "SAC", "NA"}:
         return "uid=4682784982&password=GHOST_TNVW1_RIZER_QTFT0"
     else:
